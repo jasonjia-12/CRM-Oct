@@ -466,6 +466,11 @@ chown -R "$APP_USER:$APP_USER" "$RELEASE_DIR"
 
 runuser -u "$APP_USER" -- env HOME="/var/lib/$APP_USER" \
   npm ci --no-audit --no-fund --prefix "$RELEASE_DIR"
+# whatsapp-plugin 独立于根 workspaces，需单独安装依赖
+if [[ -f "$RELEASE_DIR/whatsapp-plugin/package-lock.json" ]]; then
+  runuser -u "$APP_USER" -- env HOME="/var/lib/$APP_USER" \
+    npm ci --no-audit --no-fund --prefix "$RELEASE_DIR/whatsapp-plugin"
+fi
 
 log "5/9 构建后端和前端"
 runuser -u "$APP_USER" -- env HOME="/var/lib/$APP_USER" \
