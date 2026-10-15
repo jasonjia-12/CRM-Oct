@@ -483,6 +483,8 @@ runuser -u "$APP_USER" -- env HOME="/var/lib/$APP_USER" \
 [[ -f "$RELEASE_DIR/backend/dist/server.js" ]] || die "后端构建产物不存在"
 [[ -f "$RELEASE_DIR/backend/dist/migrate-mysql.js" ]] || die "MySQL 增量迁移程序不存在"
 [[ -f "$RELEASE_DIR/frontend/dist/index.html" ]] || die "前端构建产物不存在"
+# 构建产物的 umask 不确定，nginx(www-data) 需要读取静态文件，统一放开
+chmod -R a+rX "$RELEASE_DIR/frontend/dist"
 
 encoded_password="$(url_encode "$DB_PASSWORD")"
 database_url="mysql://$DB_USER:$encoded_password@127.0.0.1:3306/$DB_NAME"
