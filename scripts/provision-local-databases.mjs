@@ -137,7 +137,9 @@ if (existingUsers.length) {
   throw new Error(`目标数据库账号已存在，已停止：${existingUsers.map((item) => item.name).join(", ")}`);
 }
 
-const backupDir = resolve(projectRoot, "../../GoodJob_private/database-backups");
+const backupDir = process.env.GOODJOB_DATABASE_BACKUP_DIR
+  ? resolve(process.env.GOODJOB_DATABASE_BACKUP_DIR)
+  : resolve(projectRoot, "backups/database");
 mkdirSync(backupDir, { recursive: true, mode: 0o700 });
 const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
 const backupPath = resolve(backupDir, `${sourceDatabase}-${stamp}.sql.gz`);

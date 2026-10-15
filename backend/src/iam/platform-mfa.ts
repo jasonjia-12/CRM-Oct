@@ -103,9 +103,10 @@ export function createPlatformMfaService(pool: mysql.Pool): PlatformMfaService {
       const [mfaResult] = await pool.query(`SELECT enabled FROM platform_operator_mfa WHERE operator_id = ? LIMIT 1`, [current.id]);
       if (!one<{ enabled: boolean }>(mfaResult)?.enabled) fail(409, "请先完成平台 MFA 注册");
       const challengeId = `mfac_${randomUUID().replaceAll("-", "")}`;
-      const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
+      // MySQL datetime 列不接受 ISO 8601 的 Z 后缀，交由 mysql2 序列化 Date 对象
+      const expiresAt = new Date(Date.now() + 5 * 60_000);
       await pool.query(`INSERT INTO platform_mfa_challenges (id, operator_id, expires_at, created_at) VALUES (?, ?, ?, NOW(3))`, [challengeId, current.id, expiresAt]);
-      return { challengeId, expiresAt };
+      return { challengeId, expiresAt: expiresAt.toISOString() };
     },
     async enroll(actor) {
       const current = await operator(pool, actor);
