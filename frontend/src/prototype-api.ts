@@ -1,6 +1,7 @@
 type Role = "sales" | "manager" | "admin" | "super_admin";
 type DashboardPeriod = "today" | "week" | "month";
 
+import "./secure-context-shim";
 import * as XLSX from "xlsx";
 import * as echarts from "echarts";
 import isoCountries from "i18n-iso-countries";
