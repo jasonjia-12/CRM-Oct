@@ -485,12 +485,14 @@ log "读取 MySQL 现有结构并执行幂等增量迁移（不创建数据库�
 runuser -u "$APP_USER" -- env \
   HOME="/var/lib/$APP_USER" \
   DATABASE_URL="$database_url" \
+  APP_DATABASE_PROFILE=production \
   GOODJOB_RELEASE_ID="$RELEASE_ID" \
   node "$RELEASE_DIR/backend/dist/migrate-mysql.js"
 
 cat > "$ENV_FILE" <<EOF
 NODE_ENV=production
 CRM_STORE=mysql
+APP_DATABASE_PROFILE=production
 DATABASE_URL=$database_url
 PORT=$BACKEND_PORT
 BACKEND_HOST=127.0.0.1
@@ -639,6 +641,7 @@ if is_true "$PROVISION_BETA_ADMINS"; then
   runuser -u "$APP_USER" -- env \
     HOME="/var/lib/$APP_USER" \
     DATABASE_URL="mysql://$DB_USER:$encoded_password@127.0.0.1:3306/$DB_NAME" \
+    APP_DATABASE_PROFILE=production \
     BETA_ADMIN_CREDENTIALS_FILE="$BETA_ADMIN_CREDENTIALS_FILE" \
     npm run provision:beta-admins --prefix "$CURRENT_LINK"
   chmod 0600 "$BETA_ADMIN_CREDENTIALS_FILE"
