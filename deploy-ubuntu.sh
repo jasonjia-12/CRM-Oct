@@ -464,6 +464,10 @@ rsync -a --delete \
   --exclude='test-results/' \
   "$SOURCE_DIR/" "$RELEASE_DIR/"
 chown -R "$APP_USER:$APP_USER" "$RELEASE_DIR"
+# backend/.data 是运行时私有状态（如网站线索入口签名密钥），持久化到 shared，避免每次发布丢配置导致生产启动校验失败
+install -d -o "$APP_USER" -g "$APP_USER" -m 0700 "$SHARED_DIR/backend-data"
+rm -rf "$RELEASE_DIR/backend/.data"
+ln -s "$SHARED_DIR/backend-data" "$RELEASE_DIR/backend/.data"
 
 runuser -u "$APP_USER" -- env HOME="/var/lib/$APP_USER" \
   npm ci --no-audit --no-fund --prefix "$RELEASE_DIR"
