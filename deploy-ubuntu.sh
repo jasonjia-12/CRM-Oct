@@ -553,6 +553,7 @@ User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$CURRENT_LINK
 EnvironmentFile=$ENV_FILE
+EnvironmentFile=-$SHARED_DIR/extra.env
 ExecStart=/usr/bin/node $CURRENT_LINK/backend/dist/server.js
 Restart=on-failure
 RestartSec=5
