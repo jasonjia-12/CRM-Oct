@@ -207,6 +207,10 @@ define("POST /api/customers/{id}/meeting-notes", objectSchema(["transcript"], {
 }), "把用户确认的会议转写发送给已配置的 AI 生成纪要，并写入客户跟进及待办；只能提交原始转写内容。");
 define("POST /api/customer-intelligence/{id}/accept", objectSchema([], { selectedFields: array(oneOf("company", "country", "contact", "documentContact"), { maxItems: 4 }) }), "采纳客户情报建议，只能选择人工确认过的字段。");
 define("POST /api/customer-intelligence/{id}/reject", reasonSchema, "拒绝客户情报建议，可记录原因。");
+define("POST /api/customers/intake/files", emptySchema, "把用户明确选择的客户资料文件（名片/合同/邮件/表格）暂存到本机 Runner 授权目录，供后续识别；这是二进制上传接口，文件内容由用户上传流程提供，Agent 不得伪造文件内容，也不得凭文件名推断字段。");
+define("POST /api/customers/intake/analyze", objectSchema(["fileIds"], {
+  fileIds: array(string({ minLength: 4, maxLength: 80 }), { minItems: 1, maxItems: 3 })
+}), "识别用户已暂存的客户资料文件并把字段回填到新增客户表单；只能引用用户刚上传、尚未过期的暂存文件，识别结果必须由人工核对后再保存客户。");
 
 define("POST /api/leads", objectSchema(["company"], leadFields), "创建线索。未知联系资料保持空值；响应 lead.id 或 duplicate 是完成证据。");
 define("POST /api/leads/ingest", objectSchema(["company"], { ...leadFields, occurredAt: string({ format: "date-time" }), rawPayload: {} }), "从可信来源写入线索并保留来源事件；不得伪造来源载荷。");
@@ -270,8 +274,11 @@ define("PUT /api/company-profile", objectSchema([], { companyName: string({ maxL
 define("PUT /api/email-tracking/config", objectSchema([], { baseUrl: string({ maxLength: 300 }) }), "配置开发信已读追踪的公网地址（留空 = 关闭追踪）；写库并立即生效，生产环境要求 https。");
 define("PUT /api/system-settings", objectSchema(["requireDocumentExcelApproval"], { requireDocumentExcelApproval: boolean() }), "维护当前团队的系统设置，仅具备系统设置权限的管理员可执行。");
 define("PUT /api/system-settings/ocr", objectSchema([], { provider: oneOf("none", "baidu", "siliconflow"), enabled: boolean(), apiKey: string({ maxLength: 400 }), secretKey: string({ maxLength: 400 }), model: string({ maxLength: 160 }), baseUrl: string({ maxLength: 255 }) }), "维护单证 OCR 供应商配置，仅具备系统设置权限的管理员可执行。");
-define("POST /api/ai-background-research", objectSchema(["entityType", "entityId"], { entityType: oneOf("lead", "customer", "prospect"), entityId: string({ minLength: 1, maxLength: 120 }) }), "执行客户、线索或搜客候选背调，可能访问外部来源，必须确认目标对象。");
-define("POST /api/development-email/draft", objectSchema(["entityType", "entityId"], { entityType: oneOf("lead", "customer", "prospect"), entityId: string({ minLength: 1, maxLength: 120 }), tone: oneOf("professional", "concise", "warm"), scenario: oneOf("first_touch", "daily_contact", "holiday_greeting", "new_product", "custom_goal"), goal: string({ maxLength: 1000 }), requireAi: boolean(), stage: oneOf("not_contacted", "first_touch_sent", "following_up", "replied_interested", "replied_negative", "bounced", "converted"), useResearch: boolean(), useAi: boolean() }), "按当前开发阶段、收件人角色与已留档的背调结论生成开发信草稿；stage 省略时按客户实际阶段自动推导，明确拒绝/退信阶段直接拒绝生成。只出草稿，不发送。");
+define("POST /api/ai-background-research", objectSchema(["entityType", "entityId"], { entityType: oneOf("lead", "customer", "prospect"), entityId: string({ minLength: 1, maxLength: 120 }), source: oneOf("crm", "ai", "cli"), runnerId: string({ maxLength: 80 }) }), "执行客户、线索或搜客候选背调，可能访问外部来源，必须确认目标对象。source 省略时用团队「默认背调来源」；source=cli 表示交给本机已配对的 CLI 联网调研，此时本机必须先有一台在线 Runner。");
+define("PUT /api/ai-engine/settings", objectSchema([], { researchSource: oneOf("crm", "ai", "cli"), emailSource: oneOf("template", "ai", "cli"), cliAdapter: oneOf("workbuddy", "codex"), cliWorkspace: string({ maxLength: 1000 }), cliTimeoutSeconds: integer({ minimum: 60, maximum: 86400 }), runnerId: string({ maxLength: 80 }) }), "修改团队级的 AI 执行来源设置（默认背调来源、默认开发信来源、CLI 适配器/工作目录/超时）。这是团队共享配置，会改变其他人下次执行背调与开发信的默认引擎，必须确认后再提交。");
+define("POST /api/ai-engine/acquire", objectSchema([], { goal: string({ maxLength: 500 }), productKeywords: string({ maxLength: 300 }), countries: string({ maxLength: 200 }), industry: string({ maxLength: 200 }), customerType: string({ maxLength: 200 }), excludeKeywords: string({ maxLength: 200 }), limit: integer({ minimum: 1, maximum: 30 }), runnerId: string({ maxLength: 80 }) }), "用本机已配对的 CLI 按获客技能口径执行一次客户搜寻（只用公开来源、先核实再产出），结果自动同步进候选清单。goal、productKeywords、industry 至少填一项；响应里 acquisition.created 是实际新增的候选数量。");
+define("POST /api/tender-daily/run", objectSchema([], { force: boolean(), regions: string({ maxLength: 300 }), note: string({ maxLength: 500 }) }), "生成或取回当天的海外竞标日报：交给本机已配对的 CLI 联网检索公开招标/采购公告，按公司资料里的主营产品过滤。不带 force 时按天幂等——当天已有日报直接复用留档结果；force=true 才重新派一次 CLI 查询。");
+define("POST /api/development-email/draft", objectSchema(["entityType", "entityId"], { entityType: oneOf("lead", "customer", "prospect"), entityId: string({ minLength: 1, maxLength: 120 }), tone: oneOf("professional", "concise", "warm"), scenario: oneOf("first_touch", "daily_contact", "holiday_greeting", "new_product", "custom_goal"), goal: string({ maxLength: 1000 }), requireAi: boolean(), stage: oneOf("not_contacted", "first_touch_sent", "following_up", "replied_interested", "replied_negative", "bounced", "converted"), useResearch: boolean(), useAi: boolean(), source: oneOf("template", "ai", "cli"), runnerId: string({ maxLength: 80 }) }), "按当前开发阶段、收件人角色与已留档的背调结论生成开发信草稿；stage 省略时按客户实际阶段自动推导，明确拒绝/退信阶段直接拒绝生成。source 省略时用团队「默认开发信来源」；source=cli 表示交给本机已配对的 CLI 撰写。只出草稿，不发送。");
 define("POST /api/outreach-plans", objectSchema(["name"], {
   name: string({ minLength: 1, maxLength: 120 }),
   target: objectSchema([], {
@@ -403,6 +410,28 @@ define("PATCH /api/agent/skill-resources/{id}", objectSchema([], skillResourceFi
 define("PATCH /api/agent/skill-resources/{id}/status", objectSchema(["status"], { status: oneOf("draft", "published", "archived") }), "发布、撤回或归档当前团队 Skill 资源；服务端复核管理权限。");
 define("POST /api/agent/skill-resources/{id}/access", emptySchema, "获取已发布 Skill 的下载地址并记录访问；真实链接只在该接口鉴权后返回。");
 define("DELETE /api/agent/skill-resources/{id}", emptySchema, "删除当前团队 Skill 资源记录，不删除外部网盘文件；需要明确确认。");
+define("POST /api/agent/resources/recommend", objectSchema(["conversation"], {
+  conversation: array(objectSchema(["role", "text"], { role: oneOf("customer", "agent"), text: string({ minLength: 1, maxLength: 2000 }) }), { minItems: 1, maxItems: 20 }),
+  customerId: string({ maxLength: 64 }),
+  conversationKey: string({ maxLength: 120 }),
+  limit: integer({ minimum: 1, maximum: 20 }),
+  sourceTypes: array(oneOf("file", "skill", "knowledge", "product"), { maxItems: 4 }),
+  signal: oneOf("inbound", "compose", "manual"),
+  useVector: boolean(),
+  queryVector: array(number(), { maxItems: 2048 })
+}), "按当前对话内容在当前账号可见范围内推荐资料；只读检索，不返回真实外链（真实地址只能经 reveal 接口获取）。");
+define("POST /api/agent/resources/{sourceType}/{id}/reveal", objectSchema([], {
+  reason: string({ maxLength: 300 }),
+  conversationKey: string({ maxLength: 120 })
+}), "获取一份可见资源的真实访问地址或正文并记录一次访问；无权与不存在一律返回 404，不给出可探测的差异。");
+define("POST /api/agent/resources/feedback", objectSchema(["items"], {
+  items: array(objectSchema(["resourceId", "sourceType", "action"], {
+    resourceId: string({ minLength: 1, maxLength: 90 }),
+    sourceType: oneOf("file", "skill", "knowledge", "product"),
+    action: oneOf("accepted", "dismissed", "sent")
+  }), { minItems: 1, maxItems: 20 }),
+  conversationKey: string({ maxLength: 120 })
+}), "记录业务员对推荐资料的采纳/忽略/已发送，只作为排序先验；不可见的资源 id 会被静默丢弃。");
 define("POST /api/agent/tuning/inspect", objectSchema(["goal"], {
   goal: string({ minLength: 2, maxLength: 2000 }),
   context: objectSchema([], {
