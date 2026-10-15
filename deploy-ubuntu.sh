@@ -583,6 +583,9 @@ cat > "/etc/nginx/sites-available/$SERVICE_NAME" <<EOF
 server {
     listen 80;
     listen [::]:80;
+    # IP:端口直连部署的主入口（未备案域名 80 可能被云厂商阻断）；PUBLIC_PORT 可覆盖
+    listen ${PUBLIC_PORT:-4188};
+    listen [::]:${PUBLIC_PORT:-4188};
     server_name $server_name;
 
     root $CURRENT_LINK/frontend/dist;
